@@ -1,5 +1,6 @@
 name: "Slack Notify"
 description: "Send a Slack notification for a GitHub Actions job"
+
 runs:
   using: "composite"
   steps:
@@ -14,24 +15,35 @@ runs:
         COMMIT_SHA: ${{ inputs.commit-sha }}
         ACTOR: ${{ inputs.actor }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        GITHUB_HEAD_REF: ${{ github.head_ref }}
       run: |
+        # Pick correct branch name
+        if [ -n "$PR_NUMBER" ] && [ -n "$GITHUB_HEAD_REF" ]; then
+          EFFECTIVE_REF="$GITHUB_HEAD_REF"
+        else
+          EFFECTIVE_REF="$REF_NAME"
+        fi
+
+        # Colors & emojis
         if [ "$JOB_STATUS" = "success" ]; then
-          COLOR="#36a64f"   # green
+          COLOR="#36a64f"
           EMOJI="✅"
         elif [ "$JOB_STATUS" = "cancelled" ]; then
-          COLOR="#ffcc00"   # yellow
+          COLOR="#ffcc00"
           EMOJI="⚠️"
         else
-          COLOR="#ff0000"   # red
+          COLOR="#ff0000"
           EMOJI="❌"
         fi
 
+        # Message text
         if [ -n "$PR_NUMBER" ]; then
-          TEXT="$EMOJI Build \`$COMMIT_SHA\` of \`$REPO_NAME@$REF_NAME\` in PR #$PR_NUMBER by $ACTOR $JOB_STATUS"
+          TEXT="$EMOJI Build \`$COMMIT_SHA\` of \`$REPO_NAME@$EFFECTIVE_REF\` in PR #$PR_NUMBER by $ACTOR $JOB_STATUS"
         else
-          TEXT="$EMOJI Build \`$COMMIT_SHA\` of \`$REPO_NAME@$REF_NAME\` by $ACTOR $JOB_STATUS"
+          TEXT="$EMOJI Build \`$COMMIT_SHA\` of \`$REPO_NAME@$EFFECTIVE_REF\` by $ACTOR $JOB_STATUS"
         fi
 
+        # Slack request
         curl -X POST \
           -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
           -H "Content-type: application/json" \
@@ -46,7 +58,7 @@ runs:
               }
             ]
           }" \
-          https://slack.com/api/chat.postMessage
+        https://slack.com/api/chat.postMessage
 
 inputs:
   slack-bot-token:
