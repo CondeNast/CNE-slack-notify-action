@@ -1,0 +1,75 @@
+name: "Slack Notify"
+description: "Send a Slack notification for a GitHub Actions job"
+runs:
+  using: "composite"
+  steps:
+    - name: Notify Slack
+      shell: bash
+      env:
+        SLACK_BOT_TOKEN: ${{ inputs.slack-bot-token }}
+        SLACK_CHANNEL: ${{ inputs.slack-channel }}
+        JOB_STATUS: ${{ inputs.job-status }}
+        REPO_NAME: ${{ inputs.repo-name }}
+        REF_NAME: ${{ inputs.ref-name }}
+        COMMIT_SHA: ${{ inputs.commit-sha }}
+        ACTOR: ${{ inputs.actor }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+      run: |
+        if [ "$JOB_STATUS" = "success" ]; then
+          COLOR="#36a64f"   # green
+          EMOJI="✅"
+        elif [ "$JOB_STATUS" = "cancelled" ]; then
+          COLOR="#ffcc00"   # yellow
+          EMOJI="⚠️"
+        else
+          COLOR="#ff0000"   # red
+          EMOJI="❌"
+        fi
+
+        if [ -n "$PR_NUMBER" ]; then
+          TEXT="$EMOJI Build \`$COMMIT_SHA\` of \`$REPO_NAME@$REF_NAME\` in PR #$PR_NUMBER by $ACTOR $JOB_STATUS"
+        else
+          TEXT="$EMOJI Build \`$COMMIT_SHA\` of \`$REPO_NAME@$REF_NAME\` by $ACTOR $JOB_STATUS"
+        fi
+
+        curl -X POST \
+          -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+          -H "Content-type: application/json" \
+          --data "{
+            \"channel\": \"$SLACK_CHANNEL\",
+            \"attachments\": [
+              {
+                \"color\": \"$COLOR\",
+                \"title\": \"Build Notification\",
+                \"text\": \"$TEXT\",
+                \"footer\": \"GitHub Actions\"
+              }
+            ]
+          }" \
+          https://slack.com/api/chat.postMessage
+
+inputs:
+  slack-bot-token:
+    description: "Slack bot token"
+    required: true
+  slack-channel:
+    description: "Slack channel ID"
+    required: true
+  job-status:
+    description: "Job status (success, failure, cancelled)"
+    required: true
+  repo-name:
+    description: "Repository name"
+    required: true
+  ref-name:
+    description: "Branch or tag name"
+    required: true
+  commit-sha:
+    description: "Commit SHA"
+    required: true
+  actor:
+    description: "Actor who triggered the workflow"
+    required: true
+  pr-number:
+    description: "Pull request number (optional)"
+    required: false
